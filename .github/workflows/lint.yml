@@ -1,0 +1,51 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontmatter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate SKILL.md frontmatter
+        run: |
+          python3 - <<'EOF'
+          import pathlib, re, sys
+
+          failures = []
+          skill_dirs = sorted(p for p in pathlib.Path("skills").iterdir() if p.is_dir())
+          if not skill_dirs:
+              failures.append("no skill directories found under skills/")
+
+          for d in skill_dirs:
+              f = d / "SKILL.md"
+              if not f.exists():
+                  failures.append(f"{d}: missing SKILL.md")
+                  continue
+              text = f.read_text(encoding="utf-8")
+              m = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+              if not m:
+                  failures.append(f"{f}: missing YAML frontmatter block")
+                  continue
+              fm = m.group(1)
+              fields = dict(
+                  (line.split(":", 1)[0].strip(), line.split(":", 1)[1].strip())
+                  for line in fm.splitlines()
+                  if ":" in line and not line.startswith((" ", "\t"))
+              )
+              if fields.get("name") != d.name:
+                  failures.append(f"{f}: frontmatter name {fields.get('name')!r} != directory {d.name!r}")
+              if not fields.get("description"):
+                  failures.append(f"{f}: missing or empty description")
+              elif len(fields["description"]) > 1024:
+                  failures.append(f"{f}: description over 1024 chars")
+
+          for msg in failures:
+              print(f"FAIL: {msg}")
+          if failures:
+              sys.exit(1)
+          print(f"OK: {len(skill_dirs)} skill(s) validated")
+          EOF
