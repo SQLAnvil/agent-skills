@@ -127,21 +127,32 @@ CALL marts.recalc()
 
 They are independent and can coexist.
 
-### 9. Primary keys / one-time DDL on incrementals → wrap in `when(!incremental())`
-An **unwrapped** `pre_operations`/`post_operations` block runs on **every** run of an incremental — the initial create *and* every append (the block is compiled into both the create-path ops and the incremental-path ops). So a bare `ALTER TABLE ... ADD PRIMARY KEY` errors on the second run (`multiple primary keys ... not allowed`). Wrap one-time DDL so it only runs on create + `--full-refresh`:
+### 9. Primary/foreign keys / one-time DDL on incrementals → wrap in `when(!incremental())`
+An **unwrapped** `pre_operations`/`post_operations` block runs on **every** run of an incremental — the initial create *and* every append (the block is compiled into both the create-path ops and the incremental-path ops). So a bare `ALTER TABLE ... ADD PRIMARY KEY` (or `ADD CONSTRAINT ... FOREIGN KEY`) errors on the second run (`multiple primary keys ... not allowed`). Wrap one-time DDL so it only runs on create + `--full-refresh`:
 ```sqlx
 post_operations {
   ${when(!incremental(), `ALTER TABLE ${self()} ADD PRIMARY KEY (order_date)`)}
 }
 ```
-(The PK also gives the incremental upsert its `ON CONFLICT` target.) Matview post-ops also re-run every build — keep them idempotent (matviews can't have PKs anyway).
+(The PK also gives the incremental upsert its `ON CONFLICT` target.) Full-replace `table`s are recreated each run, so their constraint post-ops need no guard. Matview post-ops also re-run every build — keep them idempotent (matviews can't have PKs anyway).
 
-### 10. Metadata + assertions (same surface as Dataform, works on PG)
-- `description:` (table comment) + `columns: { col: "..." }` (per-column comments) → `COMMENT ON TABLE|VIEW|MATERIALIZED VIEW|COLUMN`. Document every table.
-- `assertions: { uniqueKey, uniqueKeys: [["a","b"],["c"]], nonNull: [...], rowConditions: [...] }`. Standalone assertion = `type: "assertion"` whose `SELECT` returns offending rows (passes iff zero rows).
+### 10. Metadata for AI/BI engines + assertions (persists into the warehouse catalog)
+Text-to-SQL agents and BI copilots answer questions from **warehouse catalog metadata** — sqlanvil is how that metadata gets there, re-applied on every run so rebuilds keep it. Document every model:
+- `description:` (object comment) + `columns: { col: "..." }` (per-column comments) → `COMMENT ON TABLE|VIEW|MATERIALIZED VIEW|COLUMN`, readable back from `pg_description`/`information_schema` by any catalog-aware tool. (MySQL: tables/incrementals only — see the MySQL section. BigQuery-target projects: table + column descriptions, nested fields included.)
+- **Name join targets in column descriptions** — `customer_id: "Foreign key to public.customers.customer_id."` gives an AI engine the relationship map even before real constraints.
+- **PK/FK constraints go in `post_operations`** (there is no config field for them) — real enforced constraints on PG/MySQL; on a **BigQuery-target** project (≥1.24 tooling swap) append `NOT ENFORCED` (BigQuery stores them as catalog metadata):
+```sqlx
+post_operations {
+  ALTER TABLE ${self()} ADD CONSTRAINT fk_orders_customer
+    FOREIGN KEY (customer_id) REFERENCES ${ref("customers")} (customer_id)
+}
+```
+On an incremental, wrap in `when(!incremental())` per delta #9.
+- `assertions: { uniqueKey, uniqueKeys: [["a","b"],["c"]], nonNull: [...], rowConditions: [...] }` make key claims **tested** every run (`uniqueKey` and `uniqueKeys` are mutually exclusive — at most one). Standalone assertion = `type: "assertion"` whose `SELECT` returns offending rows (passes iff zero rows).
+- The same metadata is queryable without a warehouse connection via the Parquet catalog artifacts (`sqlanvil query`, views `actions`/`columns`/`dependencies`) and `sqlanvil docs`. Full guide: https://sqlanvil.com/docs/guides/metadata/
 
 ### 11. No BigQuery-isms, ever
-Don't emit `bigquery: {}`, `partitionBy`, `clusterBy`, `OPTIONS(...)`, `bigqueryPolicyTags`, backticked `` `project.dataset.table` ``, or `CREATE ... NOT ENFORCED`. Use the `postgres:` equivalents and standard double-quoted identifiers.
+Don't emit `bigquery: {}`, `partitionBy`, `clusterBy`, `OPTIONS(...)`, `bigqueryPolicyTags`, backticked `` `project.dataset.table` ``, or `... NOT ENFORCED` constraints. Use the `postgres:` equivalents and standard double-quoted identifiers. (`NOT ENFORCED` is correct only on a **BigQuery-target** project — see delta #10.)
 
 ### 12. CLI: `sqlanvil <verb>` (the installed CLI — no global `dataform`, no `npm run`)
 ```bash
