@@ -35,7 +35,7 @@ metadata:
 warehouse: postgres            # flat string ("postgres" or "supabase") — NOT nested
 defaultDataset: public         # the Postgres SCHEMA
 defaultAssertionDataset: sqlanvil_assertions
-sqlanvilCoreVersion: 1.26.2    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
+sqlanvilCoreVersion: 1.27.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
 vars:
   someVar: value
 ```
@@ -243,7 +243,9 @@ config {
   columnTypes: { zip_code: "text", internal_point_lat: "float8", internal_point_lon: "float8" }
 }
 ```
-Missing `columnTypes`: a **compile error** in fdw mode; on runner-extract (≥1.22) it COMPILES and the extract **fails at run time** with the exact `introspect` command to fix it — either way, don't omit them.
+Missing `columnTypes`: a **compile error** in fdw mode; on runner-extract (≥1.22) it COMPILES and the extract **fails at run time** with the exact `introspect` command to fix it — either way, don't omit them on declarations something reads.
+
+**Declarations are inert until referenced (≥1.27, Dataform parity).** A runner-extract declaration only produces an extract action when some model `ref()`s it — unreferenced declarations (even ones whose source table doesn't exist yet) compile clean and never run, so pre-declaring a source system's catalog is safe and free. Don't "fix" unreferenced placeholder declarations, and don't expect an unreferenced source to be materialized by a full run — add a `ref()` and it enters the graph on the next compile. A *referenced* declaration with a missing source fails at run time, like any SQL reading a missing table.
 
 **`schema:` on a connection-tagged declaration (≥1.22)** overrides the connection's dataset/database AND names the schema the extract/foreign table lands in (`schema: "ods", name: "zip_code"` → `ods.zip_code`; one connection per source project serves many datasets; schema-qualified `${ref("ods", "zip_code")}` works). No `schema:` = the legacy `<connection>_ext.<name>` landing spot.
 
@@ -291,7 +293,7 @@ actions:
 One adapter serves **both MySQL 8 and MariaDB 11** — same `warehouse: mysql`, same generated SQL (MariaDB-specific features ride through `operations`). The MySQL surface is **deliberately smaller** than Postgres and several deltas above **invert** — read this before authoring a MySQL project.
 
 **Config & credentials**
-- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.26.2`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
+- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.27.0`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
 - `.df-credentials.json`: flat **`MysqlConnection`** — exact fields `host port database user password sslMode`. **No `defaultSchema`** (unlike Postgres). `sslMode`: `"disable"` (default/local) or `"require"`. Default port `3306`. Compiled identifiers are two-part backticks `` `db`.`table` `` (not BigQuery's single dotted-backtick, not Postgres double-quotes).
 
 **The inversions — do NOT carry the Postgres rules over**
