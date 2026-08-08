@@ -35,7 +35,7 @@ metadata:
 warehouse: postgres            # flat string ("postgres" or "supabase") — NOT nested
 defaultDataset: public         # the Postgres SCHEMA
 defaultAssertionDataset: sqlanvil_assertions
-sqlanvilCoreVersion: 1.29.1    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
+sqlanvilCoreVersion: 1.30.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
 vars:
   someVar: value
 ```
@@ -128,6 +128,8 @@ CALL marts.recalc()
 They are independent and can coexist.
 
 **`incrementalStrategy` (≥1.29) is BigQuery-only.** `"insert_overwrite"` replaces whole partitions instead of upserting rows, and requires `bigquery: { partitionBy }` (no partition column = nothing to scope the delete to, so it fails the compile rather than truncating the table). `incrementalPredicates` narrow it further; in them `T` is the destination and `S` the staged rows. On postgres/supabase/mysql it is a **compile error** — don't reach for it there, and don't "fix" the error by adding a `bigquery:{}` block. Use the default merge with a `uniqueKey`, or delete the range you are replacing in a `pre_operations` block. Also ≥1.29: `preserveGovernanceControls` keeps BigQuery data policies attached across a table recreate (BigQuery only), and a SKIPPED task now carries the reason it was skipped.
+
+**`.jitCode()` / `jitData()` are compile errors (≥1.30).** Dataform's just-in-time compilation — `.jitCode()` on a table/view/incremental/operation/assertion, and `jitData()` — has no runtime in sqlanvil, so it is rejected at compile time. Before 1.30 it was worse than an error: the action compiled clean and then silently did nothing at run time. Generate the SQL at compile time instead — `.query()`, or a `type: "operations"` action. The rejection is per action, so the rest of the project still compiles.
 
 ### 9. Primary/foreign keys / one-time DDL on incrementals → wrap in `when(!incremental())`
 An **unwrapped** `pre_operations`/`post_operations` block runs on **every** run of an incremental — the initial create *and* every append (the block is compiled into both the create-path ops and the incremental-path ops). So a bare `ALTER TABLE ... ADD PRIMARY KEY` (or `ADD CONSTRAINT ... FOREIGN KEY`) errors on the second run (`multiple primary keys ... not allowed`). Wrap one-time DDL so it only runs on create + `--full-refresh`:
@@ -301,7 +303,7 @@ actions:
 One adapter serves **both MySQL 8 and MariaDB 11** — same `warehouse: mysql`, same generated SQL (MariaDB-specific features ride through `operations`). The MySQL surface is **deliberately smaller** than Postgres and several deltas above **invert** — read this before authoring a MySQL project.
 
 **Config & credentials**
-- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.29.1`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
+- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.30.0`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
 - `.df-credentials.json`: flat **`MysqlConnection`** — exact fields `host port database user password sslMode`. **No `defaultSchema`** (unlike Postgres). `sslMode`: `"disable"` (default/local) or `"require"`. Default port `3306`. Compiled identifiers are two-part backticks `` `db`.`table` `` (not BigQuery's single dotted-backtick, not Postgres double-quotes).
 
 **The inversions — do NOT carry the Postgres rules over**
