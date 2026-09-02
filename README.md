@@ -7,6 +7,7 @@
 | Skill | What it does |
 |---|---|
 | [`sqlanvil-engineering-fundamentals`](skills/sqlanvil-engineering-fundamentals/SKILL.md) | The delta guide for authoring sqlanvil data projects. Your Dataform/BigQuery instincts are mostly right — this skill covers exactly where they aren't: config blocks, credentials shape, statement separators, numeric enums, CLI verbs, cross-warehouse connections, and the MySQL inversions. |
+| [`sqlanvil-sqlx-lint`](skills/sqlanvil-sqlx-lint/SKILL.md) | Runs the [sqlanvil-sqlx-lint](https://github.com/SQLAnvil/sqlanvil-sqlx-lint) convention checker on every `.sqlx` file an agent writes: columns documentation, `${ref()}` usage, schema suffixes, directory policies, and the Dataform habits sqlanvil silently ignores or fails on at run time. |
 
 ## Install
 
@@ -16,7 +17,7 @@ With the [skills CLI](https://skills.sh) (installs into Claude Code, Codex CLI, 
 npx skills add SQLAnvil/agent-skills
 ```
 
-Manual install for any spec-compliant agent: copy (or symlink) `skills/sqlanvil-engineering-fundamentals/` into your agent's skills directory — e.g. `~/.claude/skills/` for Claude Code.
+Manual install for any spec-compliant agent: copy (or symlink) the `skills/<name>/` directories you want into your agent's skills directory — e.g. `~/.claude/skills/` for Claude Code.
 
 ## Related
 
