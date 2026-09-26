@@ -35,7 +35,7 @@ metadata:
 warehouse: postgres            # flat string ("postgres" or "supabase") — NOT nested
 defaultDataset: public         # the Postgres SCHEMA
 defaultAssertionDataset: sqlanvil_assertions
-sqlanvilCoreVersion: 1.32.8    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
+sqlanvilCoreVersion: 1.32.9    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
 vars:
   someVar: value
 ```
@@ -168,7 +168,7 @@ sqlanvil run       <projectDir> --credentials ... --actions <name> --include-dep
 sqlanvil validate  <projectDir> --credentials ...      # EXPLAIN-validate the whole DAG without executing (PG/Supabase/MySQL; BigQuery via dry-run)
 sqlanvil test      <projectDir> --credentials ...
 ```
-Install with `npm i -g @sqlanvil/cli`. (Working from a sqlanvil repo checkout instead of the installed CLI? Use `./scripts/run <verb>` in place of `sqlanvil <verb>`.)
+Install with `npm i -g @sqlanvil/cli` (needs Node 20.19+ or 22.12+). (Working from a sqlanvil repo checkout instead of the installed CLI? Use `./scripts/run <verb>` in place of `sqlanvil <verb>`.)
 
 **Migrating a whole Dataform project?** `sqlanvil migrate-dataform <srcDir> <outDir>` (≥1.22) converts it: the source dir is READ-ONLY, declarations become per-project runner-extract connections, targets get safe rewrites + inline `SQLANVIL-MIGRATE:` markers, and `migration-report.{md,json}` carries the to-do list (`validate` is the completion loop). Don't hand-translate file-by-file — run the converter, then work the report. **Staying on BigQuery?** `--target-warehouse bigquery` (≥1.24) is the same-warehouse tooling swap: SQL, `bigquery:{}` blocks, and declarations pass through untouched (no connections, no dialect pass); `defaultProject`/`defaultLocation` carry through and dataset casing is preserved. Since 1.26 the converter also generates the SECRETLESS ADC-mode `.df-credentials.json` ({projectId, location} — local runs auth via `gcloud auth application-default login`, like Dataform) and scaffolds an `environments.test` (schemaSuffix: test) — first real runs go through `sqlanvil run . --environment test` so production datasets stay untouched; don't remove either without asking.
 
@@ -303,7 +303,7 @@ actions:
 One adapter serves **both MySQL 8 and MariaDB 11** — same `warehouse: mysql`, same generated SQL (MariaDB-specific features ride through `operations`). The MySQL surface is **deliberately smaller** than Postgres and several deltas above **invert** — read this before authoring a MySQL project.
 
 **Config & credentials**
-- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.32.8`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
+- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.32.9`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
 - `.df-credentials.json`: flat **`MysqlConnection`** — exact fields `host port database user password sslMode`. **No `defaultSchema`** (unlike Postgres). `sslMode`: `"disable"` (default/local) or `"require"`. Default port `3306`. Compiled identifiers are two-part backticks `` `db`.`table` `` (not BigQuery's single dotted-backtick, not Postgres double-quotes).
 
 **The inversions — do NOT carry the Postgres rules over**
