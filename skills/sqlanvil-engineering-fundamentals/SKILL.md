@@ -26,7 +26,7 @@ metadata:
 - Loading a file into the warehouse (`type: "import"`) or exporting query results to files (`type: "export"`)
 - Staging/glue steps in Python (`python:` script actions in actions.yaml, ≥1.20)
 - Translating an existing Dataform/BigQuery project to sqlanvil/Postgres
-- Any time you're about to write `bigquery: {}`, `partitionBy`, `dataform.json`, `method: "btree"`, or `;` between statements — STOP and check the deltas
+- Any time you're about to write `bigquery: {}`, `partitionBy`, `dataform.json`, `config { type: "rlsPolicy" }`, or `;` between statements — STOP and check the deltas
 
 ## The Deltas That Bite (read before writing anything)
 
@@ -35,7 +35,7 @@ metadata:
 warehouse: postgres            # flat string ("postgres" or "supabase") — NOT nested
 defaultDataset: public         # the Postgres SCHEMA
 defaultAssertionDataset: sqlanvil_assertions
-sqlanvilCoreVersion: 1.32.10   # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
+sqlanvilCoreVersion: 1.33.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
 vars:
   someVar: value
 ```
@@ -67,19 +67,19 @@ config {
     tablespace: "fast_ssd",
     indexes: [
       { name: "idx_email", columns: ["email"], unique: true },
-      { name: "idx_props", columns: ["props"], method: 2, opclass: "jsonb_path_ops" }
+      { name: "idx_props", columns: ["props"], method: "gin", opclass: "jsonb_path_ops" }
     ]
   }
 }
 ```
-**Index `method` is a NUMERIC ENUM, not a string:** `BTREE=0, HASH=1, GIN=2, GIST=3, BRIN=4`. `method: "btree"` fails the config type check (the parser uses protobufjs `create()`). Omit `method` for btree (default 0).
-Index fields: `name`, `columns[]`(array), `method`(int), `where`(partial predicate), `unique`(bool), `include[]`(array, covering), `opclass`(**single string**, applied to every indexed column — `opclass: "gin_trgm_ops"`, **not** an array).
+**Index `method`** is `"btree"` (the default — omit it), `"hash"`, `"gin"`, `"gist"` or `"brin"`, in any case (≥1.33; an unknown name is a compile error). **Below 1.33 a name silently built a btree** — on an older pin write the number: `BTREE=0, HASH=1, GIN=2, GIST=3, BRIN=4`.
+Index fields: `name`, `columns[]`(array), `method`, `where`(partial predicate), `unique`(bool), `include[]`(array, covering), `opclass`(**single string**, applied to every indexed column — `opclass: "gin_trgm_ops"`, **not** an array).
 
 ### 4. Native partitioning via `postgres.partition` (not `partitionBy`/`clusterBy`)
 ```sqlx
 postgres: {
   partition: {
-    kind: 0,                                   // RANGE=0, LIST=1, HASH=2 (numeric enum)
+    kind: "range",                             // "range" | "list" | "hash" (≥1.33; older pins: 0/1/2)
     columns: ["order_date"],
     partitions: [
       { name: "y2024", values: "FROM ('2024-01-01') TO ('2025-01-01')" }
@@ -195,7 +195,9 @@ environments:
 `sqlanvil run . --environment prod` loads prod's overrides + its credentials file (works on compile/run/test). Precedence: **explicit CLI flag > environment > workflow_settings defaults** (`vars` merge per-key). Each env's `credentials:` is a path to a **gitignored** `.df-credentials*.json` file — secrets never go in `workflow_settings.yaml`. `--schema-suffix` stays the low-level primitive.
 
 ### 13. Supabase extras (`warehouse: supabase`)
-`supabase: {}` block adds `enableRls`, `publishToRealtime`, `ownerRole`, `vectors: [{ column, dimensions, indexType }]`. Dedicated action types: `rlsPolicy`, `realtimePublication`, `wrapper`, `vectorIndex`. `enableRls` only flips RLS on — declare actual policies via the `rlsPolicy` action.
+**The Supabase actions are JavaScript calls, NOT `.sqlx` types** — `config { type: "rlsPolicy" }` is a compile error ("Unrecognized action type"). Write them in a `definitions/*.js` file: `rlsPolicy({ table, name, command, roles, using, withCheck })`, `realtimePublication({ table, name? })`, `vectorIndex({ table, name, column, indexType, params })`, `wrapper({...})`. ≥1.33 the first three can also be `actions.yaml` entries (`- rlsPolicy: {...}`); `wrapper` is JS-only. Required (≥1.33 errors if missing): rlsPolicy `name` (the Postgres policy name) + `table`; vectorIndex `name` + `table` + `column`; realtimePublication `table`. Postgres rejects `withCheck` on `select`/`delete` policies.
+
+The table-level **`supabase: {}` block** (on `table`/`incremental`, `warehouse: supabase` only — a compile error elsewhere) sets `enableRls`, `publishToRealtime`, `ownerRole`, `vectors: [{ column, indexType: "hnsw"|"ivfflat", params }]` (index named `<table>_<column>_idx`, hnsw default) and a nested `postgres: {}`. Applied when the table is created, after its indexes, before `post_operations`. **Below 1.33 the block was silently ignored** — on an older pin use the actions instead. `enableRls` only flips RLS on — declare policies with `rlsPolicy`.
 
 ### 14. Declaring external sources: `type: "declaration"`
 Reference a pre-existing (externally-managed) table so `${ref()}` resolves and the DAG tracks it. Two equivalent forms:
@@ -303,11 +305,11 @@ actions:
 One adapter serves **both MySQL 8 and MariaDB 11** — same `warehouse: mysql`, same generated SQL (MariaDB-specific features ride through `operations`). The MySQL surface is **deliberately smaller** than Postgres and several deltas above **invert** — read this before authoring a MySQL project.
 
 **Config & credentials**
-- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.32.10`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
+- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.33.0`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
 - `.df-credentials.json`: flat **`MysqlConnection`** — exact fields `host port database user password sslMode`. **No `defaultSchema`** (unlike Postgres). `sslMode`: `"disable"` (default/local) or `"require"`. Default port `3306`. Compiled identifiers are two-part backticks `` `db`.`table` `` (not BigQuery's single dotted-backtick, not Postgres double-quotes).
 
 **The inversions — do NOT carry the Postgres rules over**
-- **`mysql: {}` config block (indexes + table options + partitioning).** Declare secondary indexes (`indexes: [{ name?, columns, unique?, type? }]`) and table options (`engine`, `charset`, `collation`, `rowFormat` ≥1.19) in config — the role delta #3's `postgres: {}` plays. Index `type:` is `"fulltext"` or `"spatial"` (≥1.19; mutually exclusive with `unique`; a SPATIAL index needs a NOT NULL SRID geometry column, which CTAS doesn't produce — usually needs a `post_operations` `MODIFY` first). A column may carry a **prefix length in MySQL's own syntax** — `"body(50)"` → `` `body`(50) `` (required to index TEXT/BLOB, ≥1.19). No `WHERE`/`INCLUDE`/`opclass` (Postgres-only). **Native partitioning** via `mysql: { partition: { kind, expression, partitions: [{name, values}], count } }` (≥1.11; `kind`: RANGE=0, LIST=1, HASH=2, KEY=3; NB MySQL requires partition columns in every UNIQUE/PRIMARY key — a partitioned incremental's `uniqueKey` must include them). Use `mysql: {}`, never `postgres: {}`, on a mysql model — a `postgres:` block is the wrong dialect and silently ignored.
+- **`mysql: {}` config block (indexes + table options + partitioning).** Declare secondary indexes (`indexes: [{ name?, columns, unique?, type? }]`) and table options (`engine`, `charset`, `collation`, `rowFormat` ≥1.19) in config — the role delta #3's `postgres: {}` plays. Index `type:` is `"fulltext"` or `"spatial"` (≥1.19; mutually exclusive with `unique`; a SPATIAL index needs a NOT NULL SRID geometry column, which CTAS doesn't produce — usually needs a `post_operations` `MODIFY` first). A column may carry a **prefix length in MySQL's own syntax** — `"body(50)"` → `` `body`(50) `` (required to index TEXT/BLOB, ≥1.19). No `WHERE`/`INCLUDE`/`opclass` (Postgres-only). **Native partitioning** via `mysql: { partition: { kind, expression, partitions: [{name, values}], count } }` (≥1.11; `kind`: `"range"`, `"list"`, `"hash"` or `"key"` — names need ≥1.33, below that they silently became RANGE, so use `0`–`3`; NB MySQL requires partition columns in every UNIQUE/PRIMARY key — a partitioned incremental's `uniqueKey` must include them). Use `mysql: {}`, never `postgres: {}`, on a mysql model — a `postgres:` block is the wrong dialect and silently ignored.
 - **Incremental `uniqueKey` is sufficient — don't add your own unique index/PK.** `uniqueKey: ["id"]` compiles to `INSERT ... ON DUPLICATE KEY UPDATE`, and the adapter **auto-creates the matching unique index** (`uq_<db>_<table>`) on the first / `--full-refresh` build. Adding your own PK/unique for the merge (the Postgres `ON CONFLICT` pattern of delta #9) duplicates it.
 - **Materialized views are emulated as a refreshed table snapshot.** `type: "view", materialized: true` builds a real table via drop + CTAS each run (refresh = re-run), honoring the `mysql: {}` block (engine/charset/rowFormat/indexes — the view config's `mysql:` block compiles through since **1.19**; earlier versions silently ignored it). No native matview, so it reads back as a table; no `refreshPolicy` / `noData` (those are Postgres-only).
 - **`description:` / `columns:` apply as real DB comments.** They produce table/column comments via `ALTER TABLE … COMMENT` / `MODIFY COLUMN … COMMENT` and read back from `information_schema` (same documentation surface as Postgres). Tables/incrementals only — MySQL views can't carry comments, so a view's `description:`/`columns:` are skipped. Assertions (standalone + auto `assertions: {}`) also work.
@@ -327,7 +329,6 @@ One adapter serves **both MySQL 8 and MariaDB 11** — same `warehouse: mysql`, 
 | `bigquery: { partitionBy, clusterBy }` | `postgres: { partition: {...}, indexes: [...] }` |
 | `OPTIONS(...)` / table options | `postgres: { fillfactor, unlogged, tablespace }` |
 | `CREATE INDEX` in `post_operations` | `postgres: { indexes: [...] }` |
-| `method: "btree"` (string) | `method: 0` (numeric enum) |
 | `;` between statements | `---` |
 | `CREATE PROCEDURE` + run separately | `type: "operations"` |
 | creds `{postgres:{username,databaseName,ssl}}` | flat `{host,port,database,user,password,sslMode,defaultSchema}` |
@@ -342,7 +343,7 @@ One adapter serves **both MySQL 8 and MariaDB 11** — same `warehouse: mysql`, 
 ## Common Mistakes (observed in real agent baselines)
 
 1. Hand-rolling indexes/fillfactor in `post_operations` → use the `postgres: {}` block.
-2. `method: "btree"` string → numeric enum (`0`).
+2. A Supabase action as a `.sqlx` type (`config { type: "rlsPolicy" }`) → a JavaScript call (`rlsPolicy({...})` in `definitions/*.js`) or, ≥1.33, an `actions.yaml` entry.
 3. Nesting credentials under `"postgres"` or using `username`/`databaseName`/`ssl` → flat `PostgresConnection`.
 4. Leaving `bigquery: {}`, `defaultProject`, `clusterBy`, `bigqueryPolicyTags` in → remove all of it.
 5. `;` separators in operations → `---` (and trust `$$...$$` bodies).
@@ -357,7 +358,7 @@ One adapter serves **both MySQL 8 and MariaDB 11** — same `warehouse: mysql`, 
 If you're about to type any of these in a Postgres/Supabase sqlanvil project, you're reverting to BigQuery priors:
 - `dataform.json`, `defaultProject`, `defaultLocation`
 - `bigquery: {`, `partitionBy`, `clusterBy`, `OPTIONS(`
-- `method: "` (string) inside an index
+- `type: "rlsPolicy"` / `"vectorIndex"` / `"realtimePublication"` in a `.sqlx` config
 - `CREATE INDEX` / `SET (fillfactor` inside `post_operations`
 - `;` to separate statements in an operation
 - `ADD PRIMARY KEY`/`ADD CONSTRAINT` in an incremental's `post_operations` without `when(!incremental())`
