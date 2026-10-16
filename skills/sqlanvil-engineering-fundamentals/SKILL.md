@@ -35,7 +35,7 @@ metadata:
 warehouse: postgres            # flat string ("postgres" or "supabase") — NOT nested
 defaultDataset: public         # the Postgres SCHEMA
 defaultAssertionDataset: sqlanvil_assertions
-sqlanvilCoreVersion: 1.35.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
+sqlanvilCoreVersion: 1.36.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
 vars:
   someVar: value
 ```
@@ -244,7 +244,7 @@ The read (write) warehouse must be **`postgres` or `supabase`** — reading a co
 
 **Two source modes (`mode:` on the connection):**
 - **`fdw`** (default for bigquery/postgres/supabase) — a live foreign table; needs the `wrappers` extension (+ Vault secret for BigQuery) on the warehouse.
-- **`runner-extract`** (≥1.15 BigQuery; the default and ONLY mode for mysql, ≥1.18) — the CLI reads the source at run time and **materializes** the rows into a plain `<connection>_ext.<name>` table (capped 1M rows / 512MB). No Vault secret, no `wrappers`/`postgis` — works on bare/ephemeral databases where an FDW can't exist (branch CI). BigQuery auth in `connections.<name>` can be **keyless**: a short-lived `accessToken` (≥1.14), a `credentials` SA key, or ADC. An explicit `mode: fdw` on a mysql connection is a **compile error**.
+- **`runner-extract`** (≥1.15 BigQuery; the default and ONLY mode for mysql, ≥1.18) — the CLI reads the source at run time and **materializes** the rows into a plain `<connection>_ext.<name>` table (capped 1M rows / 512MB). No Vault secret, no `wrappers`/`postgis` — works on bare/ephemeral databases where an FDW can't exist (branch CI). BigQuery auth in `connections.<name>` can be **keyless**: a short-lived `accessToken` (≥1.14), `impersonateServiceAccount` (≥1.36; the CLI impersonates it over ADC or the key — source needs `roles/iam.serviceAccountTokenCreator`), a `credentials` SA key, or ADC. An explicit `mode: fdw` on a mysql connection is a **compile error**.
 
 **Step 2 — tag a declaration with the connection.** It **requires `columnTypes`** (the FDW needs them to build the foreign table), expressed in **Postgres** types (the foreign table is a Postgres object):
 ```sqlx
@@ -266,7 +266,7 @@ Missing `columnTypes`: a **compile error** in fdw mode; on runner-extract (≥1.
 sqlanvil introspect <connection> <schema.table> --output definitions/sources/<name>.sqlx
 # e.g. sqlanvil introspect bigquery_public geo_us_boundaries.zip_codes --output definitions/sources/zip_codes.sqlx
 ```
-`introspect` reads the live source schema and writes the declaration with each source column mapped to a Postgres type — BigQuery→PG, Postgres→PG, and **MySQL→PG since 1.18** (`datetime`→`timestamp`, `double`→`double precision`, `json`→`jsonb`, blobs→`bytea`) — because `columnTypes` define the bridge/extract table *in the warehouse*. (`--output` writes the file; otherwise it prints to stdout.) It connects from your machine at build time, so it needs **read creds for the source** in `.df-credentials.json` under a `connections` map — `{ "connections": { "<name>": { ...source creds... } } }` (BigQuery: `{ "credentials": <SA key JSON> }` or a keyless `accessToken`; Postgres/MySQL: `host`/`port`/`database`/`user`/`password`/`sslMode`). This sits alongside the flat write-warehouse creds; `run` also reads the `connections` map for runner-extract sources and user-mapping injection.
+`introspect` reads the live source schema and writes the declaration with each source column mapped to a Postgres type — BigQuery→PG, Postgres→PG, and **MySQL→PG since 1.18** (`datetime`→`timestamp`, `double`→`double precision`, `json`→`jsonb`, blobs→`bytea`) — because `columnTypes` define the bridge/extract table *in the warehouse*. (`--output` writes the file; otherwise it prints to stdout.) It connects from your machine at build time, so it needs **read creds for the source** in `.df-credentials.json` under a `connections` map — `{ "connections": { "<name>": { ...source creds... } } }` (BigQuery: `{ "credentials": <SA key JSON> }`, a keyless `accessToken`, or `impersonateServiceAccount` (≥1.36); Postgres/MySQL: `host`/`port`/`database`/`user`/`password`/`sslMode`). This sits alongside the flat write-warehouse creds; `run` also reads the `connections` map for runner-extract sources and user-mapping injection.
 
 **What `compile` auto-generates** (you never write these): in `fdw` mode, a foreign server **`<connection>_srv`** and a ref-able foreign table in schema **`<connection>_ext`** — e.g. `bigquery_public_ext.zip_codes`; in `runner-extract` mode, a ref-able **extract action** that materializes the same `<connection>_ext.<name>` table at run time. Downstream models just `${ref("zip_codes")}` either one like any other source; multiple declarations on one connection share the server. **Don't** hand-write a `wrapper`/foreign-table action to read a source — named connections replace that manual path.
 
@@ -305,7 +305,7 @@ actions:
 One adapter serves **both MySQL 8 and MariaDB 11** — same `warehouse: mysql`, same generated SQL (MariaDB-specific features ride through `operations`). The MySQL surface is **deliberately smaller** than Postgres and several deltas above **invert** — read this before authoring a MySQL project.
 
 **Config & credentials**
-- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.35.0`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
+- `workflow_settings.yaml`: `warehouse: mysql`. `defaultDataset` = the MySQL **database** (MySQL has no schema-vs-database split — "schema" *is* the database). `defaultAssertionDataset` is a separate database. Pin the current core (`sqlanvilCoreVersion: 1.36.0`; MySQL warehouse needs ≥1.5, full `mysql:{}` block ≥1.19).
 - `.df-credentials.json`: flat **`MysqlConnection`** — exact fields `host port database user password sslMode`. **No `defaultSchema`** (unlike Postgres). `sslMode`: `"disable"` (default/local) or `"require"`. Default port `3306`. Compiled identifiers are two-part backticks `` `db`.`table` `` (not BigQuery's single dotted-backtick, not Postgres double-quotes).
 
 **The inversions — do NOT carry the Postgres rules over**
