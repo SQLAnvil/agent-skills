@@ -1,0 +1,6 @@
+# skill-creator eval runs (outputs, transcripts, compiled graphs, grades);
+# the evals themselves live in skills/<skill>/evals/
+*-workspace/
+
+# Python bytecode (evals scripts)
+__pycache__/

@@ -16,6 +16,19 @@ in the same pass as the engine's `AGENTS.md` and the sqlanvil-com docs:
 3. Keep the frontmatter `description` stable unless the skill's trigger surface genuinely
    changed — it's what agents match on.
 
+## Layout of the fundamentals skill
+
+- `SKILL.md` holds the deltas that bite and the hand-over checklist — the part every
+  authoring task pays for. Keep it lean (it is loaded whole on every trigger).
+- `references/` holds what is read only for a specific job: `mysql.md`,
+  `cross-warehouse-sources.md`, `migrating-from-dataform.md`, `files-and-scripts.md`,
+  `cli-and-environments.md`, `older-pins.md`. A release note that only matters on an old pin
+  goes in `older-pins.md`, not SKILL.md.
+- `evals/` holds the test prompts and `grade.py`, which compiles each produced project with
+  the installed CLI and grades the deltas from the compiled graph. Run an iteration after any
+  substantive edit (`evals/README.md`); runs land in the gitignored
+  `../../sqlanvil-engineering-fundamentals-workspace/`.
+
 ## Conventions
 
 - One directory per skill under `skills/`, each containing a `SKILL.md` with `name` (must

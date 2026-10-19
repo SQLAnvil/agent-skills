@@ -1,0 +1,132 @@
+{
+  "skill_name": "sqlanvil-engineering-fundamentals",
+  "notes": "Prompts contain <OUTDIR>; setup_iteration.py replaces it with each run's outputs/ directory. Assertions tagged [auto:<check> args...] are settled by grade.py, which compiles the produced project with the installed sqlanvil CLI and inspects the compiled graph and the source files; untagged assertions are read from the run's transcript.md. Every prompt exercises a different warehouse facet (plain Postgres, Supabase, MySQL/MariaDB, a cross-warehouse BigQuery source), because that is where the skill's deltas diverge. Each eval's `handover` list is [label, regex] pairs that grade_handover.py matches against the transcript's final message to settle the untagged hand-over assertion.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "pg-events-partition-gin-matview",
+      "prompt": "I'm starting a new sqlanvil project (the Dataform fork) against a plain Postgres 16 database: localhost port 5432, database `analytics`, user `analytics`, password `dev-only`, no TLS locally. Create the project under <OUTDIR>/events_project with:\n\n- a declaration for the existing `raw.events` table (event_id uuid, user_id uuid, event_ts timestamptz, event_type text, payload jsonb) so models can reference it\n- a `marts.events` table built from it, range-partitioned by month on event_ts for January through March 2025 plus a default partition, with a GIN index on payload using jsonb_path_ops, fillfactor 90, event_id asserted unique and event_ts asserted non-null\n- a `marts.events_daily` materialized view (events per day per event_type) that is refreshed in place when its upstream changes, with a unique index on (day, event_type)\n- a PL/pgSQL function `marts.prune_events(days int)` that deletes marts.events rows older than that many days, created by sqlanvil and then called once with 365\n- every model documented so the table and column comments land in the Postgres catalog\n\nThe `sqlanvil` CLI is installed (run `sqlanvil help` if you need it). Make sure the project compiles. Also write <OUTDIR>/transcript.md listing the commands you ran with their key output, and your final message to me verbatim.",
+      "expected_output": "A project with workflow_settings.yaml (warehouse: postgres, sqlanvilCoreVersion pinned, no BigQuery fields), a flat .df-credentials.json, a raw.events declaration, marts.events using postgres: { fillfactor, partition: { kind: range ... }, indexes: [{ method: gin, opclass: jsonb_path_ops }] } with assertions, a type: view materialized: true with postgres: { refreshPolicy: on_dependency_change, indexes } and a type: operations action whose two statements are split by --- with the $$ body intact. It compiles clean with sqlanvil 1.36 and the hand-over says to run `sqlanvil run ... --credentials`.",
+      "files": [],
+      "assertions": [
+        "[auto:compiles] The project compiles with the installed sqlanvil CLI with zero compilation errors, from workflow_settings.yaml (no dataform.json).",
+        "[auto:settings postgres] workflow_settings.yaml has a flat `warehouse: postgres`, pins `sqlanvilCoreVersion`, and carries no defaultProject / defaultLocation / dataformCoreVersion.",
+        "[auto:creds_flat postgres] .df-credentials.json is a flat PostgresConnection (host port database user password sslMode defaultSchema), not nested under a key and not using username / databaseName / ssl.",
+        "[auto:index_in_config events gin jsonb_path_ops] marts.events declares its GIN index through postgres.indexes with opclass as a single string, and no CREATE INDEX is hand-written in any pre/post operation or operations action.",
+        "[auto:partition_in_config events range event_ts 3] marts.events is partitioned through postgres.partition (kind range on event_ts, at least three bounds, includeDefault), with no hand-written PARTITION BY / PARTITION OF DDL.",
+        "[auto:matview events_daily in_place unique_index] marts.events_daily is `type: view, materialized: true` with postgres.refreshPolicy on_dependency_change and a unique index in postgres.indexes.",
+        "[auto:operations_split 2] The function and its call are one `type: operations` action compiled into two statements (split on ---), with the $$ body intact and no `;` used as a separator or DELIMITER anywhere.",
+        "[auto:declaration raw.events events] raw.events is a declaration, marts.events depends on it through ${ref()} rather than a hard-coded raw.events reference in the SQL.",
+        "[auto:no_bigquery_isms] No bigquery: block, partitionBy, clusterBy, OPTIONS(...), bigqueryPolicyTags, defaultProject/defaultLocation, or backticked project.dataset.table reference appears in the sources.",
+        "[auto:columns_documented] Every table, view and incremental in the compiled graph carries a description and per-column documentation (actionDescriptor.columns).",
+        "[auto:assertions_declared events event_id event_ts] The compiled graph has a uniqueKey assertion on marts.events.event_id and a non-null assertion on event_ts.",
+        "The transcript shows the project was compiled with the `sqlanvil` CLI (not `dataform` and not `npm run`), and the final message tells the user to run it with `sqlanvil run <dir> --credentials <file>`."
+      ],
+      "handover": [
+        [
+          "`sqlanvil compile` in transcript",
+          "sqlanvil compile"
+        ],
+        [
+          "`sqlanvil run ... --credentials`",
+          "sqlanvil run[^\\n]*--credentials"
+        ]
+      ]
+    },
+    {
+      "id": 2,
+      "name": "supabase-incremental-upsert-rls",
+      "prompt": "We're on Supabase: project ref `kxqzpwfaybmlcdoqrtvs`, session pooler host `aws-1-us-east-1.pooler.supabase.com` on 5432, database `postgres`, user `postgres.kxqzpwfaybmlcdoqrtvs`, password `dev-only-pw` (a dev branch, fine in the gitignored creds file). Set up a sqlanvil project under <OUTDIR>/orders_project.\n\nDeclare the existing `raw.orders` (order_id bigint, user_id uuid, status text, total_cents bigint, updated_at timestamptz) and `raw.customers` (user_id uuid, email text, created_at timestamptz). Build `public.orders_enriched` as an incremental table joined to the customer email that upserts on order_id, only picking up rows whose updated_at is newer than what is already loaded, and give it a real primary key on order_id. Row-level security has to be on for that table so a logged-in user can only select their own rows (`auth.uid() = user_id`). Document the columns, and assert order_id unique and user_id non-null.\n\nThe `sqlanvil` CLI is installed (`sqlanvil help`). Make sure it compiles. Write <OUTDIR>/transcript.md listing the commands you ran with key output, plus your final message to me verbatim.",
+      "expected_output": "workflow_settings.yaml with warehouse: supabase, a flat creds file pointing at the pooler with sslMode require, two declarations, an incremental with top-level uniqueKey: [\"order_id\"] and a when(incremental()) filter on updated_at, ADD PRIMARY KEY wrapped in when(!incremental()) so it only runs on create, RLS enabled (supabase: { enableRls: true } or the generated enable statement) and the policy written as rlsPolicy({...}) in a definitions/*.js file or an actions.yaml entry, never config { type: \"rlsPolicy\" }. Compiles clean.",
+      "files": [],
+      "assertions": [
+        "[auto:compiles] The project compiles with the installed sqlanvil CLI with zero compilation errors, from workflow_settings.yaml (no dataform.json).",
+        "[auto:settings supabase] workflow_settings.yaml has a flat `warehouse: supabase`, pins `sqlanvilCoreVersion`, and carries no defaultProject / defaultLocation / dataformCoreVersion.",
+        "[auto:creds_flat supabase] .df-credentials.json is a flat PostgresConnection pointing at the Supabase host with sslMode require, not nested and not using username / databaseName / ssl.",
+        "[auto:incremental_upsert orders_enriched order_id updated_at] public.orders_enriched is `type: incremental` with top-level uniqueKey [order_id] (the merge key) and an incremental-only filter on updated_at, so the incremental query differs from the create query.",
+        "[auto:pk_guarded orders_enriched] The ADD PRIMARY KEY is in the create-path post-operations only (wrapped in when(!incremental())), so it does not re-run on every append.",
+        "[auto:rls_policy orders_enriched auth.uid() = user_id] The select policy is a generated policy action (rlsPolicy JS call or actions.yaml entry) whose USING clause is auth.uid() = user_id; no .sqlx file uses `type: \"rlsPolicy\"`.",
+        "[auto:rls_enabled orders_enriched] Row-level security is enabled on orders_enriched (supabase.enableRls or a generated `enable row level security` statement).",
+        "[auto:no_bigquery_isms] No bigquery: block, partitionBy, clusterBy, OPTIONS(...), bigqueryPolicyTags, defaultProject/defaultLocation, or backticked project.dataset.table reference appears in the sources.",
+        "[auto:columns_documented] Every table, view and incremental in the compiled graph carries a description and per-column documentation.",
+        "[auto:assertions_declared orders_enriched order_id user_id] The compiled graph has a uniqueKey assertion on orders_enriched.order_id and a non-null assertion on user_id.",
+        "The final message tells the user to run `sqlanvil run <dir> --credentials <file>` and that the credentials file stays out of git."
+      ],
+      "handover": [
+        [
+          "`sqlanvil run ... --credentials`",
+          "sqlanvil run[^\\n]*--credentials"
+        ],
+        [
+          "gitignore note",
+          "gitignore|out of git|not commit"
+        ]
+      ]
+    },
+    {
+      "id": 3,
+      "name": "mysql-mariadb-fulltext-procedure",
+      "prompt": "Our catalog is in MariaDB 11: host `db.internal`, port 3306, database `shop`, user `etl`, password `etl-dev`, no TLS on the internal network. Set up a sqlanvil project under <OUTDIR>/catalog_project.\n\nDeclare the existing `shop.products` table (sku varchar(64), title varchar(255), description text, price_cents int, updated_at datetime). Build `shop_marts.product_search` as an incremental table keyed on sku that upserts the rows whose updated_at moved, stored as InnoDB with a FULLTEXT index on (title, description) and a plain index on the first 50 characters of title. Add a stored procedure `shop_marts.reprice(pct int)` that multiplies price_cents by (100 + pct) / 100, created by sqlanvil and then called with 0 as a smoke test. And a `shop_marts.product_counts` materialized view with the number of products per 1000-cent price band. Document the product_search columns.\n\nThe `sqlanvil` CLI is installed (`sqlanvil help`). Make sure it compiles. Write <OUTDIR>/transcript.md listing the commands you ran with key output, plus your final message to me verbatim.",
+      "expected_output": "warehouse: mysql, flat MysqlConnection creds with no defaultSchema and sslMode disable, an incremental with uniqueKey: [\"sku\"] and a mysql: { engine: \"InnoDB\", indexes: [{ columns: [\"title\",\"description\"], type: \"fulltext\" }, { columns: [\"title(50)\"] }] } block (no postgres: block, no hand-added unique index for the merge), the procedure + CALL as a type: operations action split by --- with no DELIMITER, and type: view materialized: true for the counts. The hand-over says the MySQL matview is a refreshed table snapshot.",
+      "files": [],
+      "assertions": [
+        "[auto:compiles] The project compiles with the installed sqlanvil CLI with zero compilation errors, from workflow_settings.yaml (no dataform.json).",
+        "[auto:settings mysql] workflow_settings.yaml has a flat `warehouse: mysql`, pins `sqlanvilCoreVersion`, and carries no defaultProject / defaultLocation / dataformCoreVersion.",
+        "[auto:creds_flat mysql] .df-credentials.json is a flat MysqlConnection (host port database user password sslMode) with no defaultSchema and no nesting.",
+        "[auto:mysql_block product_search fulltext prefix InnoDB] product_search declares its indexes in the mysql: {} block (one with type fulltext, one with a (50) prefix column) and engine InnoDB; no postgres: block anywhere; no hand-written CREATE INDEX / CREATE FULLTEXT INDEX.",
+        "[auto:incremental_upsert product_search sku updated_at] product_search is an incremental with uniqueKey [sku] and an incremental-only filter on updated_at.",
+        "[auto:no_manual_unique product_search] No hand-added PRIMARY KEY or UNIQUE index on product_search for the merge (the MySQL adapter creates the unique index for uniqueKey itself).",
+        "[auto:operations_split 2] The procedure and its CALL are one `type: operations` action compiled into two statements split on ---, with the BEGIN...END body's semicolons intact and no DELIMITER directive anywhere.",
+        "[auto:no_double_quoted_identifiers] Raw DDL in operations uses backticks or bare names, never Postgres-style double-quoted identifiers.",
+        "[auto:matview product_counts mysql] product_counts is `type: view, materialized: true` with no Postgres-only refreshPolicy / noData options.",
+        "[auto:no_bigquery_isms] No bigquery: block, partitionBy, clusterBy, OPTIONS(...), bigqueryPolicyTags, defaultProject/defaultLocation, or backticked project.dataset.table reference appears in the sources.",
+        "[auto:columns_documented skip_views] Every table and incremental in the compiled graph carries a description and per-column documentation (MySQL views cannot carry comments, so views are exempt).",
+        "The final message says the MySQL materialized view is rebuilt as a table snapshot each run (not a native materialized view) and tells the user to run `sqlanvil run <dir> --credentials <file>`."
+      ],
+      "handover": [
+        [
+          "snapshot explanation",
+          "snapshot|drop \\+ ?(ctas|create table)|rebuil|emulat|not (a )?(live|native|real) materiali[sz]ed"
+        ],
+        [
+          "`sqlanvil run ... --credentials`",
+          "sqlanvil run[^\\n]*--credentials"
+        ]
+      ]
+    },
+    {
+      "id": 4,
+      "name": "supabase-bigquery-source-runner-extract",
+      "prompt": "Our warehouse is Supabase (project ref `abcdefghijklmnop`, pooler host `aws-0-us-west-1.pooler.supabase.com` port 5432, database `postgres`, user `postgres.abcdefghijklmnop`, password `dev-only-pw`). I need the public BigQuery table `bigquery-public-data.geo_us_boundaries.zip_codes` available to a model in it. Its columns: zip_code STRING, city STRING, county STRING, state_code STRING, area_land_meters FLOAT64, internal_point_lat FLOAT64, internal_point_lon FLOAT64 (there's also a GEOGRAPHY column, skip it). Billing goes to my GCP project `histand-sandbox` and I have a service-account key file at ~/keys/bq-reader.json. This database is a preview branch where I can't install extensions, so no foreign data wrappers. Build `public.zips_tx`: the Texas zip codes with their lat/lon, as a table with an index on zip_code. Put the project under <OUTDIR>/zips_project.\n\nThe `sqlanvil` CLI is installed (`sqlanvil help`). Make sure it compiles. Write <OUTDIR>/transcript.md listing the commands you ran with key output, plus your final message to me verbatim.",
+      "expected_output": "A connections: entry in workflow_settings.yaml (platform bigquery, project bigquery-public-data, dataset geo_us_boundaries, billingProject histand-sandbox, mode runner-extract) with no key material in it; the SA key referenced under connections.<name> in .df-credentials.json; a type: declaration tagged with connection: and columnTypes in Postgres types (text, double precision); zips_tx referencing it via ${ref()} with postgres: { indexes }. No hand-rolled wrappers / CREATE SERVER / FOREIGN TABLE. The hand-over points at `sqlanvil introspect` for generating the declaration and notes the extract happens at run time.",
+      "files": [],
+      "assertions": [
+        "[auto:compiles] The project compiles with the installed sqlanvil CLI with zero compilation errors, from workflow_settings.yaml (no dataform.json).",
+        "[auto:settings supabase] workflow_settings.yaml has a flat `warehouse: supabase`, pins `sqlanvilCoreVersion`, and carries no defaultProject / defaultLocation / dataformCoreVersion.",
+        "[auto:connection platform=bigquery mode=runner-extract project=bigquery-public-data dataset=geo_us_boundaries billingProject=histand-sandbox] workflow_settings.yaml declares the BigQuery source as a named connection in runner-extract mode billed to histand-sandbox, with no key material inlined.",
+        "[auto:creds_connections] .df-credentials.json keeps the flat Supabase warehouse creds and carries the BigQuery source under connections.<name> (key material as JSON content, never a file path; it may be left for the user to inline), with nothing secret in workflow_settings.yaml.",
+        "[auto:declaration_connection zip_codes] zip_codes is a `type: declaration` tagged with the connection and columnTypes written in Postgres types (no STRING / FLOAT64), producing an extract in the compiled graph.",
+        "[auto:no_fdw_handrolled] No CREATE SERVER, FOREIGN TABLE, IMPORT FOREIGN SCHEMA, USER MAPPING, CREATE EXTENSION, or wrapper(...) action is hand-written anywhere.",
+        "[auto:depends_on zips_tx zip_codes] public.zips_tx depends on the zip_codes extract through ${ref()} (its dependencyTargets include it).",
+        "[auto:index_in_config zips_tx] zips_tx declares its zip_code index through postgres.indexes rather than a CREATE INDEX statement.",
+        "[auto:no_bigquery_isms] No bigquery: block, partitionBy, clusterBy, OPTIONS(...), bigqueryPolicyTags, defaultProject/defaultLocation, or backticked project.dataset.table reference appears in the sources.",
+        "[auto:columns_documented] Every table in the compiled graph carries a description and per-column documentation.",
+        "The final message tells the user that `sqlanvil introspect <connection> geo_us_boundaries.zip_codes` generates (and keeps correct) the declaration's columnTypes, that the source is materialized into the warehouse at run time rather than queried live, and how to supply the service-account key (inline the file's JSON content, e.g. with jq, or GOOGLE_APPLICATION_CREDENTIALS / ADC)."
+      ],
+      "handover": [
+        [
+          "introspect command",
+          "sqlanvil introspect"
+        ],
+        [
+          "run-time materialization",
+          "run[- ]time|materializ|extract"
+        ],
+        [
+          "key-supply instructions",
+          "jq|GOOGLE_APPLICATION_CREDENTIALS|application-default|(JSON|key).{0,40}(content|inline|string)"
+        ]
+      ]
+    }
+  ]
+}

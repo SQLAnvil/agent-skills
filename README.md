@@ -6,7 +6,7 @@
 
 | Skill | What it does |
 |---|---|
-| [`sqlanvil-engineering-fundamentals`](skills/sqlanvil-engineering-fundamentals/SKILL.md) | The delta guide for authoring sqlanvil data projects. Your Dataform/BigQuery instincts are mostly right — this skill covers exactly where they aren't: config blocks, credentials shape, statement separators, numeric enums, CLI verbs, cross-warehouse connections, and the MySQL inversions. |
+| [`sqlanvil-engineering-fundamentals`](skills/sqlanvil-engineering-fundamentals/SKILL.md) | The delta guide for authoring sqlanvil data projects. Your Dataform/BigQuery instincts are mostly right — this skill covers exactly where they aren't: config blocks, credentials shape, statement separators, incremental guards, Supabase actions, CLI verbs, and what to tell the user in the hand-over. Per-topic detail (MySQL inversions, cross-warehouse connections, Dataform migration, file imports, environments, older pins) lives in its [`references/`](skills/sqlanvil-engineering-fundamentals/references). |
 | [`sqlanvil-sqlx-lint`](skills/sqlanvil-sqlx-lint/SKILL.md) | Runs the [sqlanvil-sqlx-lint](https://github.com/SQLAnvil/sqlanvil-sqlx-lint) convention checker on every `.sqlx` file an agent writes: columns documentation, `${ref()}` usage, schema suffixes, directory policies, and the Dataform habits sqlanvil silently ignores or fails on at run time. |
 
 ## Install
