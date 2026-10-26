@@ -27,7 +27,10 @@ read access to the sources) fills in each declaration's `columnTypes`, and then
 columns are known — `SELECT * EXCEPT (a, b)` expands to the explicit list, `GROUP BY ALL` becomes
 positional ordinals. Running `migrate-fix` before introspect is the common mistake: it can't
 resolve a star over a declaration with no `columnTypes`, so it reports the site instead of
-rewriting it. `--dry-run` previews. Unresolved sites land in the report, never a half-rewrite.
+rewriting it. `--dry-run` previews. Unresolved sites land in the report, never a half-rewrite,
+with the reason (no `columnTypes`, an operations action whose columns must be listed by hand, an
+unknown action). From 1.36.4 it removes the "run `sqlanvil migrate-fix`" marker over each site it
+rewrites, so the ones left mark exactly the unresolved sites.
 
 ## The report is your to-do list, and it is written for you (an agent)
 
