@@ -38,6 +38,13 @@ human — bring those questions to them rather than guessing. Ordering is by con
 different numbers is the failure nobody catches. All three phases write to the report, so re-read
 it after each.
 
+Work from the report, **not a grep for `SQLANVIL-MIGRATE:`**: a site inside a `js {}` block, a
+`${…}` template or a multi-line string gets no inline marker (a comment there would change the
+code; ≥1.36.3), but it is still in the report. Neither is complete, though — some BigQuery
+functions (`IFNULL`, `COUNTIF`, `IF()`, `DATETIME(x, 'tz')`, `FARM_FINGERPRINT`, `JSON_*`,
+`INFORMATION_SCHEMA`, JS UDFs, `ML.*`) currently pass through with no marker AND no report entry,
+so `sqlanvil validate` against the warehouse is the real completion check.
+
 ## Don't "fix" what the converter deliberately left (≥1.28)
 
 `NOT ENFORCED` keys are rewritten to working PostgreSQL and left **commented** — uncommenting
