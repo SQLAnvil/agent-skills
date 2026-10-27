@@ -43,10 +43,19 @@ it after each.
 
 Work from the report, **not a grep for `SQLANVIL-MIGRATE:`**: a site inside a `js {}` block, a
 `${…}` template or a multi-line string gets no inline marker (a comment there would change the
-code; ≥1.36.3), but it is still in the report. Neither is complete, though — some BigQuery
-functions (`IFNULL`, `COUNTIF`, `IF()`, `DATETIME(x, 'tz')`, `FARM_FINGERPRINT`, `JSON_*`,
-`INFORMATION_SCHEMA`, JS UDFs, `ML.*`) currently pass through with no marker AND no report entry,
-so `sqlanvil validate` against the warehouse is the real completion check.
+code; ≥1.36.3), but it is still in the report. From 1.37 the report also lists the BigQuery
+no rule handles (`IFNULL`, `IF()`, `COUNTIF`, `DATETIME`, BigQuery-order `DATE_TRUNC`, `JSON_*`,
+scripting, …), each with its PostgreSQL form. Work its `changes-meaning` classes FIRST — they
+RUN on PostgreSQL and return different results: `REGEXP_REPLACE` without `'g'` (first match
+only), `CONCAT`/`GREATEST`/`LEAST` over a possibly-NULL argument (PostgreSQL skips the NULL),
+`LOG` (base and order), `EXTRACT(WEEK)`. BQML, JS UDFs, `FARM_FINGERPRINT` and BigQuery
+`INFORMATION_SCHEMA` views are needs-decision: ask whether the feature moves at all. SQL built
+inside JavaScript (`${…}` templates, `.js` files) is NOT scanned, so `sqlanvil validate` against
+the warehouse is still the real completion check.
+
+`introspect` maps a BigQuery `STRUCT` column to `jsonb` and a `REPEATED` field to an array
+(`text[]`; a repeated STRUCT is one `jsonb` array) from 1.37; on older pins a STRUCT column fails
+introspect and a REPEATED one comes out as its scalar type — set those by hand.
 
 ## Don't "fix" what the converter deliberately left (≥1.28)
 
