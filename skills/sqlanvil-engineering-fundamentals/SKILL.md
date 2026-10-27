@@ -33,7 +33,7 @@ Everything else — commands and flags, environments, migration, cross-warehouse
 warehouse: postgres            # flat string: "postgres", "supabase" or "mysql" — NOT nested
 defaultDataset: public         # the Postgres SCHEMA (on MySQL: the database)
 defaultAssertionDataset: sqlanvil_assertions
-sqlanvilCoreVersion: 1.37.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
+sqlanvilCoreVersion: 1.37.1    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
 vars:
   someVar: value
 ```
@@ -63,7 +63,7 @@ config {
 ```
 Index fields: `name`, `columns[]`, `method` (`"btree"` default — omit it — `"hash"`, `"gin"`, `"gist"`, `"brin"`; an unknown name is a compile error), `where` (partial predicate), `unique`, `include[]` (covering), `opclass` (**a single string** applied to every indexed column — `opclass: "gin_trgm_ops"`, **not** an array).
 
-**Known engine gap (1.37.0):** `fillfactor` is **silently dropped on a partitioned table** — the partitioned build path never emits `with (fillfactor=…)`, and Postgres would reject it on the parent anyway. If the user asks for both, say so: keep `fillfactor:` as declared intent and, if it matters, apply it to the leaf partitions in a guarded `post_operations` block.
+**Known engine gap (1.37.1):** `fillfactor` is **silently dropped on a partitioned table** — the partitioned build path never emits `with (fillfactor=…)`, and Postgres would reject it on the parent anyway. If the user asks for both, say so: keep `fillfactor:` as declared intent and, if it matters, apply it to the leaf partitions in a guarded `post_operations` block.
 
 ### 4. Native partitioning via `postgres.partition` (not `partitionBy`/`clusterBy`)
 ```sqlx

@@ -49,12 +49,16 @@ scripting, …), each with its PostgreSQL form. Work its `changes-meaning` class
 RUN on PostgreSQL and return different results: `REGEXP_REPLACE` without `'g'` (first match
 only), `CONCAT`/`GREATEST`/`LEAST` over a possibly-NULL argument (PostgreSQL skips the NULL),
 `LOG` (base and order), `EXTRACT(WEEK)`. BQML, JS UDFs, `FARM_FINGERPRINT` and BigQuery
-`INFORMATION_SCHEMA` views are needs-decision: ask whether the feature moves at all. SQL built
-inside JavaScript (`${…}` templates, `.js` files) is NOT scanned, so `sqlanvil validate` against
-the warehouse is still the real completion check.
+`INFORMATION_SCHEMA` views are needs-decision: ask whether the feature moves at all. From 1.37.1
+the SQL that JavaScript builds (template literals in `js {}` blocks, `.js` files, `${…}`) is
+scanned too, and listed in the report with no inline marker; comments are never flagged. SQL
+assembled from plain `'…'`/`"…"` JS strings with `+` is still not scanned, so `sqlanvil validate`
+against the warehouse remains the real completion check. `'''…'''` and `"""…"""` strings are
+converted to dollar quoting (`$sa$…$sa$`) from 1.37.1 — don't hand-edit them back.
 
 `introspect` maps a BigQuery `STRUCT` column to `jsonb` and a `REPEATED` field to an array
-(`text[]`; a repeated STRUCT is one `jsonb` array) from 1.37; on older pins a STRUCT column fails
+(`text[]`; a repeated STRUCT is one `jsonb` array) from 1.37, and `RANGE<DATE|DATETIME|TIMESTAMP>`
+to `daterange`/`tsrange`/`tstzrange` from 1.37.1; on older pins a STRUCT or RANGE column fails
 introspect and a REPEATED one comes out as its scalar type — set those by hand.
 
 ## Don't "fix" what the converter deliberately left (≥1.28)
