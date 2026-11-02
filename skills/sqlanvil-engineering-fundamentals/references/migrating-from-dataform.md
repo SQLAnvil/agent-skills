@@ -69,6 +69,14 @@ first). `ARRAY(SELECT AS STRUCT …)` is flagged with a recommended strategy (co
 / jsonb) and the SQL to apply it, not rewritten — it restructures the data model, so it goes to
 the human. Both are decisions, not oversights.
 
+## Operations still split on `---`
+
+Dataform 3.1.3 runs all of an operations action's queries as one BigQuery script. sqlanvil runs
+each `---`-separated query as its own statement, on every warehouse. On BigQuery, a scripting
+variable `DECLARE`d or `SET` in one query is gone in the next. A Dataform 3.1.3+ operation that
+relies on carrying one across must declare it in each query, or become a single query: drop the
+`---` and keep the `;`, which BigQuery runs as one script.
+
 ## Generated projects ship agent guidance (≥1.24)
 
 `init` (all modes) and `migrate-dataform` write a warehouse-tailored `AGENTS.md` + a `CLAUDE.md`
