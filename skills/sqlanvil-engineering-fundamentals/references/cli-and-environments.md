@@ -40,6 +40,17 @@ release-artifact pattern: compile once, run the identical graph later/elsewhere.
 catalog to `target/docs/index.html`. All warehouse-agnostic (no connection needed). Full guide:
 https://sqlanvil.com/docs/guides/metadata/
 
+## Pinned compiles skip gitignored files (1.37.3+)
+
+With `sqlanvilCoreVersion` set, `compile` installs that core into a temporary **copy** of the
+project and compiles the copy. The copy skips what the root `.gitignore` excludes, except
+`definitions/`, `includes/`, `workflow_settings.yaml` and `.npmrc` (and anything they reach through
+symlinks); `.git` and `node_modules` are never copied. So SQL that `actions.yaml` points at, or a
+helper a definition `require()`s, must not sit in a gitignored directory outside `definitions/` or
+`includes/`. If it must, re-include it in a root `.sqlanvilignore` (`.gitignore` syntax, read
+second): `!/queries/`. The failing compile prints a `Note:` naming the excluded path. Full page:
+https://sqlanvil.com/docs/troubleshooting/#a-pinned-compile-cant-find-a-gitignored-file
+
 ## Named environments (`--environment <name>`)
 
 Define dev/staging/prod in an `environments:` block in `workflow_settings.yaml`; each bundles
