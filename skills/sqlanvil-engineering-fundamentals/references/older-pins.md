@@ -18,6 +18,8 @@ an older `sqlanvilCoreVersion` and you cannot bump it. The dangerous entries are
 | `preserveGovernanceControls` accepted on `type: "incremental"` (BigQuery) | 1.32.7 | tables only |
 | BigQuery `impersonateServiceAccount` in `connections.<name>` | 1.36 | SA key (`credentials`), `accessToken` (≥1.14) or ADC |
 | `warehouse: bigquery`: `run` / `validate` jobs and new datasets go to `defaultLocation` | 1.36.2 | they **silently** used the `.df-credentials.json` `location`; keep the two equal on older pins |
+| `run --json` prints the run result (exit 1 on failure); `run --build-only` | 1.38.0 | `run --json` without `--dry-run` **silently ran nothing and exited 0**; on BigQuery `run --dry-run --json` printed the graph |
+| BigQuery `defaultLocation` / credentials `location` optional | 1.38.0 | `init` / `init-creds` required one |
 | MySQL/MariaDB as a *source* (`platform: mysql`, runner-extract only) + MySQL→PG `introspect` | 1.18 | not available |
 | `mode: runner-extract` for BigQuery sources | 1.15 | fdw only (needs `wrappers` + Vault) |
 | `billingProject:` on a BigQuery connection | 1.13 | billed to `project` |

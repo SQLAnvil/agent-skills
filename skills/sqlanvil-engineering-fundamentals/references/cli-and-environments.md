@@ -4,7 +4,7 @@ Every command and flag: https://sqlanvil.com/docs/reference/cli/ (or `sqlanvil h
 Install with `npm i -g @sqlanvil/cli` (needs Node 20.19+ or 22.12+).
 
 ```bash
-sqlanvil init      <projectDir> --warehouse postgres   # or supabase/mysql — scaffolds workflow_settings.yaml, a .df-credentials.json template, AGENTS.md (BigQuery is the default and needs a GCP project + location)
+sqlanvil init      <projectDir> --warehouse postgres   # or supabase/mysql — scaffolds workflow_settings.yaml, a .df-credentials.json template, AGENTS.md (BigQuery is the default and needs a GCP project; the location is optional since 1.38.0)
 sqlanvil init      <projectDir> --warehouse supabase --bare   # ≥1.23: skip the sample project. --interactive is a guided human Q&A; agents use the flags
 sqlanvil compile   <projectDir>                        # no warehouse needed; --json prints the graph
 sqlanvil run       <projectDir> --credentials <projectDir>/.df-credentials.json
@@ -24,6 +24,15 @@ FAILURE / BLOCKED** (blocked = only an upstream failed) / SKIPPED (operations, i
 `run --dry-run` on Postgres/Supabase/MySQL *validates* — it does not execute. Any FAILURE/BLOCKED
 exits non-zero. Python script actions (≥1.20) get an env check instead of EXPLAIN — interpreter vs
 `pythonVersion`, requirements vs installed packages, syntax — without executing the script.
+
+## `run --json` and `run --build-only` (1.38.0+)
+
+`run --json` prints the run's **result** (a `RunResult`: overall status, each action's status,
+tasks and timing) on stdout, and exits 1 if anything failed; progress and warnings go to stderr.
+To see what *would* run without running it, use `run --build-only` (exits 0; `--build-only --json`
+prints the execution graph). On Postgres/Supabase/MySQL, `run --dry-run --json` still prints the
+`validate` results. Before 1.38.0, `run --json` without `--dry-run` printed a note, ran nothing and
+exited 0, so never use it as a CI gate on an older pin.
 
 ## `run --graph <file>` (≥1.17)
 
