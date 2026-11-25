@@ -25,6 +25,9 @@ an older `sqlanvilCoreVersion` and you cannot bump it. The dangerous entries are
 | BigQuery `onSchemaChange` EXTEND/SYNCHRONIZE write the new column list on the run that changes it | 1.39.0 | that run **silently left added columns NULL**, and a SYNCHRONIZE that dropped a column failed |
 | `sqlanvilCoreVersion` must be an exact version | 1.39.0 | ranges, tags and URLs reached `npm i` |
 | `compile --mermaid` | 1.39.0 | `--dot` only |
+| `warehouse: bigquery`: a missing dataset is created by the first action that writes to it, where the data it reads lives; an operation creates one only with `hasOutput: true` | 1.40.0 | every missing dataset was created up front, in **`US`** when no location was set, wherever the data lived; operations without `hasOutput` got theirs too |
+| `run_summary` artifacts view (one row per run, even when no action ran) | 1.40.0 | `runs` only; a run that executed nothing **silently** had no row, so `inspect` and `docs` showed an older run as the latest |
+| `inspect` wall time spans only the actions that ran; failure list is the first 20 by name | 1.40.0 | wall time counted skipped/disabled actions from epoch zero; an arbitrary 20 failures |
 | MySQL/MariaDB as a *source* (`platform: mysql`, runner-extract only) + MySQL→PG `introspect` | 1.18 | not available |
 | `mode: runner-extract` for BigQuery sources | 1.15 | fdw only (needs `wrappers` + Vault) |
 | `billingProject:` on a BigQuery connection | 1.13 | billed to `project` |

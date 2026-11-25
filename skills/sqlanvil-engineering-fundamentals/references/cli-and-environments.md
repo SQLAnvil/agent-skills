@@ -4,7 +4,7 @@ Every command and flag: https://sqlanvil.com/docs/reference/cli/ (or `sqlanvil h
 Install with `npm i -g @sqlanvil/cli` (needs Node 20.19+ or 22.12+).
 
 ```bash
-sqlanvil init      <projectDir> --warehouse postgres   # or supabase/mysql — scaffolds workflow_settings.yaml, a .df-credentials.json template, AGENTS.md (BigQuery is the default and needs a GCP project; the location is optional since 1.38.0)
+sqlanvil init      <projectDir> --warehouse postgres   # or supabase/mysql — scaffolds workflow_settings.yaml, a .df-credentials.json template, AGENTS.md (BigQuery is the default and needs a GCP project; the location is optional since 1.38.0; with none, 1.40.0+ creates a new dataset where the data its first writing action reads lives)
 sqlanvil init      <projectDir> --warehouse supabase --bare   # ≥1.23: skip the sample project. --interactive is a guided human Q&A; agents use the flags
 sqlanvil compile   <projectDir>                        # no warehouse needed; --json prints the graph
 sqlanvil run       <projectDir> --credentials <projectDir>/.df-credentials.json
@@ -44,10 +44,15 @@ release-artifact pattern: compile once, run the identical graph later/elsewhere.
 ## Queryable artifacts
 
 `compile`/`run` write Parquet artifacts under `<projectDir>/target/` (gitignore it).
-`sqlanvil query "<sql>"` runs SQL over them (views: `actions`, `dependencies`, `columns`, `runs`),
-`sqlanvil inspect` prints a project/run summary, `sqlanvil docs` renders a self-contained HTML
+`sqlanvil query "<sql>"` runs SQL over them (views: `actions`, `dependencies`, `columns`, `runs`,
+and `run_summary`, 1.40.0+), `sqlanvil inspect` prints a project/run summary, `sqlanvil docs` renders a self-contained HTML
 catalog to `target/docs/index.html`. All warehouse-agnostic (no connection needed). Full guide:
 https://sqlanvil.com/docs/guides/metadata/
+
+`runs` has one row per action; `run_summary` has one row per run (`run_id`, `run_status`), written
+even when no action ran. For "the latest run", take `max(run_id)` from `run_summary`, not from
+`runs`: a run that executed nothing has no `runs` rows, so `runs` can name an older run than
+`inspect` reports.
 
 ## Pinned compiles skip gitignored files (1.37.3+)
 

@@ -33,11 +33,11 @@ Everything else — commands and flags, environments, migration, cross-warehouse
 warehouse: postgres            # flat string: "postgres", "supabase" or "mysql" — NOT nested
 defaultDataset: public         # the Postgres SCHEMA (on MySQL: the database)
 defaultAssertionDataset: sqlanvil_assertions
-sqlanvilCoreVersion: 1.39.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
+sqlanvilCoreVersion: 1.40.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
 vars:
   someVar: value
 ```
-**Drop** `defaultProject` and `defaultLocation` — they are BigQuery-only. `dataform.json` is the legacy upstream name; sqlanvil reads `workflow_settings.yaml`. **Keep** `defaultDataset`: from 1.39 an action that writes somewhere (table, view, incremental, assertion, import, operation with `hasOutput: true`) and gets no schema from it or its own config is a compile error. `sqlanvilCoreVersion` must be an exact version (`1.39.0`); a range, tag or URL is rejected.
+**Drop** `defaultProject` and `defaultLocation` — they are BigQuery-only. `dataform.json` is the legacy upstream name; sqlanvil reads `workflow_settings.yaml`. **Keep** `defaultDataset`: from 1.39 an action that writes somewhere (table, view, incremental, assertion, import, operation with `hasOutput: true`) and gets no schema from it or its own config is a compile error. `sqlanvilCoreVersion` must be an exact version (`1.40.0`); a range, tag or URL is rejected.
 
 ### 2. Connection: `.df-credentials.json` is a flat `PostgresConnection`
 The filename is literally `.df-credentials.json` (the fork kept upstream's name; override with `--credentials`). The JSON is **flat** — **not** nested under a `"postgres"` key, **not** the BigQuery shape, and the field names are exactly `host port database user password sslMode defaultSchema` (**not** `username`/`databaseName`/`ssl`):
@@ -63,7 +63,7 @@ config {
 ```
 Index fields: `name`, `columns[]`, `method` (`"btree"` default — omit it — `"hash"`, `"gin"`, `"gist"`, `"brin"`; an unknown name is a compile error), `where` (partial predicate), `unique`, `include[]` (covering), `opclass` (**a single string** applied to every indexed column — `opclass: "gin_trgm_ops"`, **not** an array).
 
-**Known engine gap (1.39.0):** `fillfactor` is **silently dropped on a partitioned table** — the partitioned build path never emits `with (fillfactor=…)`, and Postgres would reject it on the parent anyway. If the user asks for both, say so: keep `fillfactor:` as declared intent and, if it matters, apply it to the leaf partitions in a guarded `post_operations` block.
+**Known engine gap (1.40.0):** `fillfactor` is **silently dropped on a partitioned table** — the partitioned build path never emits `with (fillfactor=…)`, and Postgres would reject it on the parent anyway. If the user asks for both, say so: keep `fillfactor:` as declared intent and, if it matters, apply it to the leaf partitions in a guarded `post_operations` block.
 
 ### 4. Native partitioning via `postgres.partition` (not `partitionBy`/`clusterBy`)
 ```sqlx
