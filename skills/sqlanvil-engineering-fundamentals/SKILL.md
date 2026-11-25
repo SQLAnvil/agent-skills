@@ -33,11 +33,11 @@ Everything else — commands and flags, environments, migration, cross-warehouse
 warehouse: postgres            # flat string: "postgres", "supabase" or "mysql" — NOT nested
 defaultDataset: public         # the Postgres SCHEMA (on MySQL: the database)
 defaultAssertionDataset: sqlanvil_assertions
-sqlanvilCoreVersion: 1.38.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
+sqlanvilCoreVersion: 1.39.0    # sqlanvil's OWN SemVer line (NOT dataformCoreVersion); pin the current release
 vars:
   someVar: value
 ```
-**Drop** `defaultProject` and `defaultLocation` — they are BigQuery-only. `dataform.json` is the legacy upstream name; sqlanvil reads `workflow_settings.yaml`.
+**Drop** `defaultProject` and `defaultLocation` — they are BigQuery-only. `dataform.json` is the legacy upstream name; sqlanvil reads `workflow_settings.yaml`. **Keep** `defaultDataset`: from 1.39 an action that writes somewhere (table, view, incremental, assertion, import, operation with `hasOutput: true`) and gets no schema from it or its own config is a compile error. `sqlanvilCoreVersion` must be an exact version (`1.39.0`); a range, tag or URL is rejected.
 
 ### 2. Connection: `.df-credentials.json` is a flat `PostgresConnection`
 The filename is literally `.df-credentials.json` (the fork kept upstream's name; override with `--credentials`). The JSON is **flat** — **not** nested under a `"postgres"` key, **not** the BigQuery shape, and the field names are exactly `host port database user password sslMode defaultSchema` (**not** `username`/`databaseName`/`ssl`):
@@ -63,7 +63,7 @@ config {
 ```
 Index fields: `name`, `columns[]`, `method` (`"btree"` default — omit it — `"hash"`, `"gin"`, `"gist"`, `"brin"`; an unknown name is a compile error), `where` (partial predicate), `unique`, `include[]` (covering), `opclass` (**a single string** applied to every indexed column — `opclass: "gin_trgm_ops"`, **not** an array).
 
-**Known engine gap (1.38.0):** `fillfactor` is **silently dropped on a partitioned table** — the partitioned build path never emits `with (fillfactor=…)`, and Postgres would reject it on the parent anyway. If the user asks for both, say so: keep `fillfactor:` as declared intent and, if it matters, apply it to the leaf partitions in a guarded `post_operations` block.
+**Known engine gap (1.39.0):** `fillfactor` is **silently dropped on a partitioned table** — the partitioned build path never emits `with (fillfactor=…)`, and Postgres would reject it on the parent anyway. If the user asks for both, say so: keep `fillfactor:` as declared intent and, if it matters, apply it to the leaf partitions in a guarded `post_operations` block.
 
 ### 4. Native partitioning via `postgres.partition` (not `partitionBy`/`clusterBy`)
 ```sqlx
@@ -131,7 +131,7 @@ Text-to-SQL agents and BI copilots answer from **warehouse catalog metadata**; s
 - `description:` + `columns: { col: "..." }` → `COMMENT ON TABLE|VIEW|MATERIALIZED VIEW|COLUMN`, readable back from `pg_description`/`information_schema`. (MySQL: tables/incrementals only.)
 - **Name join targets in column descriptions** — `customer_id: "Foreign key to public.customers.customer_id."` gives an AI engine the relationship map even before real constraints.
 - **PK/FK constraints go in `post_operations`** (there is no config field for them); on an incremental, wrap in `when(!incremental())` per delta #9.
-- `assertions: { uniqueKey, uniqueKeys: [["a","b"],["c"]], nonNull: [...], rowConditions: [...] }` make key claims **tested** every run (`uniqueKey` and `uniqueKeys` are mutually exclusive). `nonNull` compiles into the `..._assertions_rowConditions` action. Standalone assertion = `type: "assertion"` whose `SELECT` returns offending rows (passes iff zero rows).
+- `assertions: { uniqueKey, uniqueKeys: [["a","b"],["c"]], nonNull: [...], rowConditions: [...] }` make key claims **tested** every run (`uniqueKey` and `uniqueKeys` are mutually exclusive). `nonNull` compiles into the `..._assertions_rowConditions` action. They are created in `defaultAssertionDataset`, or in the model's own schema when that is unset; `assertions: { dataset: "qa" }` moves one model's (>=1.39). Standalone assertion = `type: "assertion"` whose `SELECT` returns offending rows (passes iff zero rows).
 
 ### 11. No BigQuery-isms, ever
 Don't emit `bigquery: {}`, `partitionBy`, `clusterBy`, `OPTIONS(...)`, `bigqueryPolicyTags`, backticked `` `project.dataset.table` ``, or `... NOT ENFORCED` constraints on a Postgres/Supabase/MySQL project. Use the `postgres:`/`mysql:` equivalents and the warehouse's own identifier quoting (double quotes on Postgres, backticks on MySQL).
@@ -156,7 +156,7 @@ The table-level **`supabase: {}` block** (on `table`/`incremental`, `warehouse: 
 ### 14. CLI: `sqlanvil <verb>` (no `dataform`, no `npm run`)
 ```bash
 sqlanvil init     <dir> --warehouse postgres|supabase|mysql [--bare]
-sqlanvil compile  <dir> [--json]
+sqlanvil compile  <dir> [--json | --mermaid]     # --mermaid (>=1.39) draws the graph for a PR or wiki
 sqlanvil run      <dir> --credentials <dir>/.df-credentials.json [--full-refresh] [--actions <name> --include-deps]
 sqlanvil validate <dir> --credentials ...     # EXPLAIN-validates the whole DAG without executing
 sqlanvil test     <dir> --credentials ...
